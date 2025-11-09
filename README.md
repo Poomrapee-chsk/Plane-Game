@@ -1,6 +1,11 @@
-## Assets Credits:
+## Assets Credits
 Heightmap: Iceland Heightmap from Tangram Heightmapper (though any other should work).  
 Plane model: [airplane v2 3D Model by "printable_models"](https://free3d.com/3d-model/airplane-v2--549103.html) on sketchfab.com
+
+## Demo
+https://github.com/user-attachments/assets/a85088ea-2084-4437-b283-129c02d2d4bb
+
+
 
 ## How To Run
 
