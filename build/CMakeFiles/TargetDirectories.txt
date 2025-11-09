@@ -1,5 +1,0 @@
-/home/thomas/Documents/Subjects/GAMEENGINE/Simple3DGame/build/CMakeFiles/GLAD.dir
-/home/thomas/Documents/Subjects/GAMEENGINE/Simple3DGame/build/CMakeFiles/STB_IMAGE.dir
-/home/thomas/Documents/Subjects/GAMEENGINE/Simple3DGame/build/CMakeFiles/Simple3DGame.dir
-/home/thomas/Documents/Subjects/GAMEENGINE/Simple3DGame/build/CMakeFiles/edit_cache.dir
-/home/thomas/Documents/Subjects/GAMEENGINE/Simple3DGame/build/CMakeFiles/rebuild_cache.dir
