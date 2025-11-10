@@ -433,8 +433,8 @@ int main() {
 
     // build and compile shaders
     // -------------------------
-    Shader skyboxShader("6.1.skybox.vs", "6.1.skybox.fs");
-    Shader modelShader("model.vs", "model.fs");
+    Shader skyboxShader("shaders/skybox.vs", "shaders/skybox.fs");
+    Shader modelShader("shaders/model.vs", "shaders/model.fs");
 
     // load models
     // -----------
@@ -489,8 +489,8 @@ int main() {
 
     /* Load Terrain */
     HeightmapTerrain terrain(
-        "resources/terrain/heightmaps/iceland_heightmap.png", "terrain.vs",
-        "terrain.fs");
+        "resources/terrain/heightmaps/iceland_heightmap.png", "shaders/terrain.vs",
+        "shaders/terrain.fs");
 
     /* Create flyable plane */
     Plane player(glm::vec3(0.0f, 55.0f, 0.0f));
