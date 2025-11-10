@@ -88,7 +88,10 @@ class HeightmapTerrain {
                      &indices[0], GL_STATIC_DRAW);
     }
 
+
   public:
+	unsigned int snowTexture, grassTexture, rockTexture, waterTexture, sandTexture;
+
     HeightmapTerrain(const std::string &heightmapPath,
                      const std::string &vertexShaderPath,
                      const std::string &fragmentShaderPath)
@@ -150,6 +153,12 @@ class HeightmapTerrain {
 
         // create GPU buffers for the mesh
         setupMesh(indices);
+        
+        waterTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/water.jpg").c_str());
+        sandTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/sand.jpg").c_str());
+        grassTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/grass.jpg").c_str());
+        rockTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/rock.jpg").c_str());
+        snowTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/snow.jpg").c_str());
     }
 
     // Helper function for plane
@@ -167,6 +176,29 @@ class HeightmapTerrain {
         heightmapShader.setMat4("projection", projection);
         heightmapShader.setMat4("view", view);
         heightmapShader.setMat4("model", model);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, waterTexture); // Put our water texture in unit 0
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, sandTexture); // Put our sand texture in unit 1
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, grassTexture); // Put our grass texture in unit 2
+
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, rockTexture); // Put our rock texture in unit 3
+
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, snowTexture); // Put our snow texture in unit 4
+
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureWater"), 0);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureSand"), 1);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureGrass"), 2);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureRock"), 3);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureSnow"), 4);
+
+
         glBindVertexArray(terrainVAO);
 
         for (unsigned strip = 0; strip < numStrips; strip++) {
