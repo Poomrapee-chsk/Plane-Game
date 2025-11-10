@@ -3,15 +3,30 @@
 out vec4 FragColor;
 
 in float Height;
+in vec2 vTexCoord;
+
+uniform sampler2D uTextureWater;
+uniform sampler2D uTextureSand;
+uniform sampler2D uTextureGrass;
+uniform sampler2D uTextureRock;
+uniform sampler2D uTextureSnow;
+
+const float tiling = 30.0;
 
 vec3 heightToTerrainColor(float h)
 {
+    vec2 tiledTexCoord = vTexCoord * tiling;
     // define colors
-    vec3 water = vec3(0.0, 0.15, 0.5);
-    vec3 sand  = vec3(0.76, 0.68, 0.50);
-    vec3 grass = vec3(0.15, 0.6, 0.2);
-    vec3 rock  = vec3(0.45, 0.45, 0.45);
-    vec3 snow  = vec3(1.0, 1.0, 1.0);
+    //vec3 water = vec3(0.0, 0.15, 0.5);
+    //vec3 sand  = vec3(0.76, 0.68, 0.50);
+    //vec3 grass = vec3(0.15, 0.6, 0.2);
+    //vec3 rock  = vec3(0.45, 0.45, 0.45);
+    //vec3 snow  = vec3(1.0, 1.0, 1.0);
+    vec3 water = texture(uTextureWater, tiledTexCoord).rgb;
+    vec3 sand = texture(uTextureSand, tiledTexCoord).rgb;
+    vec3 grass = texture(uTextureGrass, tiledTexCoord).rgb;
+    vec3 rock = texture(uTextureRock, tiledTexCoord).rgb;
+    vec3 snow = texture(uTextureSnow, tiledTexCoord).rgb;
 
     // blend using smoothstep across ranges
     if (h < 0.4)
