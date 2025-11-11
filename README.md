@@ -3,7 +3,11 @@ Heightmap: Iceland Heightmap from Tangram Heightmapper (though any other should 
 Plane model: [airplane v2 3D Model by "printable_models"](https://free3d.com/3d-model/airplane-v2--549103.html) on sketchfab.com
 
 ## Demo
-https://github.com/user-attachments/assets/a85088ea-2084-4437-b283-129c02d2d4bb
+#### Update 1
+
+
+https://github.com/user-attachments/assets/f16c4ceb-523a-4f04-8041-51556a9c6a58
+
 
 
 
