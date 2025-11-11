@@ -1,0 +1,4 @@
+CompileFlags:
+  Add: [-Icmake-build-debug/configuration, -Iincludes]
+Diagnostics:
+  MissingIncludes: Strict
