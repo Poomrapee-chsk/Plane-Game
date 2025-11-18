@@ -83,9 +83,11 @@ class HeightmapTerrain {
                      &vertices[0], GL_STATIC_DRAW);
 
         // position attribute
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float),
-                              (void *)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0);
         glEnableVertexAttribArray(0);
+        // texture coordinate attribute
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
 
         glGenBuffers(1, &terrainIBO);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, terrainIBO);
@@ -95,7 +97,7 @@ class HeightmapTerrain {
 
 
   public:
-	unsigned int snowTexture, grassTexture, rockTexture, waterTexture, sandTexture;
+	unsigned int terrainTexture;
 
     HeightmapTerrain(const std::string &heightmapPath,
                      const std::string &vertexShaderPath,
@@ -129,9 +131,16 @@ class HeightmapTerrain {
                 vertices.push_back(static_cast<int>(y) * yScale - yShift); // vy
                 vertices.push_back((-width / 2.0f + width * j / (float)width) *
                                    horizontalScale); // vz
+                vertices.push_back(i / (float)height * horizontalScale) ;  // texture x
+				vertices.push_back(j / (float)width * horizontalScale); // texture z
             }
         }
-        std::cout << "Loaded " << vertices.size() / 3 << " vertices"
+  //      for (int i = 0; i < height * width; i++) {
+  //           std::cout << "v[" << i << "] = (" << vertices[i * 5 + 0] << ", "
+  //                     << vertices[i * 5 + 1] << ", " << vertices[i * 5 + 2] << ", " << vertices[i * 5 + 3] << ", " << vertices[i * 5 + 4]
+  //                     << ")" << std::endl;
+		//}
+        std::cout << "Loaded " << vertices.size() / 5 << " vertices"
                   << std::endl;
         stbi_image_free(data);
 
@@ -159,11 +168,7 @@ class HeightmapTerrain {
         // create GPU buffers for the mesh
         setupMesh(indices);
 
-        waterTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/water.jpg").c_str());
-        sandTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/sand.jpg").c_str());
-        grassTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/grass.jpg").c_str());
-        rockTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/rock.jpg").c_str());
-        snowTexture = loadTexture(FileSystem::getPath("resources/textures/terrain/snow.jpg").c_str());
+        terrainTexture = loadTexture(FileSystem::getPath("resources/textures/pbr/terrain/iceland_texture.jpg").c_str());
     }
 
     // Helper function for plane
@@ -183,25 +188,9 @@ class HeightmapTerrain {
         heightmapShader.setMat4("model", model);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, waterTexture); // Put our water texture in unit 0
+        glBindTexture(GL_TEXTURE_2D, terrainTexture); // Put our water texture in unit 0
 
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, sandTexture); // Put our sand texture in unit 1
-
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, grassTexture); // Put our grass texture in unit 2
-
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, rockTexture); // Put our rock texture in unit 3
-
-        glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, snowTexture); // Put our snow texture in unit 4
-
-        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureWater"), 0);
-        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureSand"), 1);
-        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureGrass"), 2);
-        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureRock"), 3);
-        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureSnow"), 4);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureTerrain"), 0);
 
 
         glBindVertexArray(terrainVAO);
@@ -228,7 +217,7 @@ class HeightmapTerrain {
             iz = width - 1;
         size_t idx = (static_cast<size_t>(ix) * static_cast<size_t>(width) +
                       static_cast<size_t>(iz)) *
-                         3 +
+                         5 +
                      1;
         return vertices[idx];
     }
