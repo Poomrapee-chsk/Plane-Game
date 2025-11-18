@@ -97,7 +97,7 @@ class HeightmapTerrain {
 
 
   public:
-	unsigned int terrainTexture;
+    unsigned int snowTexture, grassTexture, rockTexture, waterTexture, sandTexture;
 
     HeightmapTerrain(const std::string &heightmapPath,
                      const std::string &vertexShaderPath,
@@ -105,6 +105,7 @@ class HeightmapTerrain {
         : heightmapShader(vertexShaderPath.c_str(),
                           fragmentShaderPath.c_str()) {
         stbi_set_flip_vertically_on_load(true);
+
         unsigned char *data =
             stbi_load(FileSystem::getPath(heightmapPath).c_str(), &width,
                       &height, &nrChannels, 0);
@@ -131,8 +132,8 @@ class HeightmapTerrain {
                 vertices.push_back(static_cast<int>(y) * yScale - yShift); // vy
                 vertices.push_back((-width / 2.0f + width * j / (float)width) *
                                    horizontalScale); // vz
-                vertices.push_back(i / (float)height * horizontalScale) ;  // texture x
-				vertices.push_back(j / (float)width * horizontalScale); // texture z
+                vertices.push_back((i / (float)height - 0.5) * horizontalScale);  // texture x
+                vertices.push_back((j / (float)width - 0.5) * horizontalScale); // texture z
             }
         }
   //      for (int i = 0; i < height * width; i++) {
@@ -168,7 +169,11 @@ class HeightmapTerrain {
         // create GPU buffers for the mesh
         setupMesh(indices);
 
-        terrainTexture = loadTexture(FileSystem::getPath("resources/textures/pbr/terrain/iceland_texture.jpg").c_str());
+        waterTexture = loadTexture(FileSystem::getPath("resources/textures/pbr/terrain/water.jpg").c_str());
+        sandTexture = loadTexture(FileSystem::getPath("resources/textures/pbr/terrain/sand.jpg").c_str());
+        grassTexture = loadTexture(FileSystem::getPath("resources/textures/pbr/terrain/grass.jpg").c_str());
+        rockTexture = loadTexture(FileSystem::getPath("resources/textures/pbr/terrain/rock.jpg").c_str());
+        snowTexture = loadTexture(FileSystem::getPath("resources/textures/pbr/terrain/snow.jpg").c_str());
     }
 
     // Helper function for plane
@@ -188,9 +193,25 @@ class HeightmapTerrain {
         heightmapShader.setMat4("model", model);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, terrainTexture); // Put our water texture in unit 0
+        glBindTexture(GL_TEXTURE_2D, waterTexture); // Put our water texture in unit 0
 
-        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureTerrain"), 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, sandTexture); // Put our sand texture in unit 1
+
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, grassTexture); // Put our grass texture in unit 2
+
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, rockTexture); // Put our rock texture in unit 3
+
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, snowTexture); // Put our snow texture in unit 4
+
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureWater"), 0);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureSand"), 1);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureGrass"), 2);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureRock"), 3);
+        glUniform1i(glGetUniformLocation(heightmapShader.ID, "uTextureSnow"), 4);
 
 
         glBindVertexArray(terrainVAO);
@@ -442,6 +463,8 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
+
+
 
     // tell GLFW to capture our mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
