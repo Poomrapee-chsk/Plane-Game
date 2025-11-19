@@ -4,14 +4,40 @@ out vec4 FragColor;
 
 in float Height;
 in vec2 vTexCoord;
+in vec3 FragPos;
+in vec3 Normal;
+in vec4 FragPosLightSpace;
 
 uniform sampler2D uTextureWater;
 uniform sampler2D uTextureSand;
 uniform sampler2D uTextureGrass;
 uniform sampler2D uTextureRock;
 uniform sampler2D uTextureSnow;
+uniform sampler2D shadowMap;
+
+uniform vec3 lightDir;
+uniform vec3 lightColor;
+uniform vec3 viewPos;
+uniform vec3 fogColor;
+uniform float fogDensity;
 
 const float tiling = 30.0;
+
+float ShadowCalculation(vec4 fragPosLightSpace)
+{
+    // perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(shadowMap, projCoords.xy).r;
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+    // check whether current frag pos is in shadow
+    float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+
+    return shadow;
+}
 
 vec3 heightToTerrainColor(float h)
 {
@@ -44,6 +70,26 @@ void main()
     float h = (Height + 32.0) / 64.0;
     h = clamp(h, 0.0, 1.0);
 
-    vec3 color = heightToTerrainColor(h);
-    FragColor = vec4(color, 1.0);
+    vec3 texColor = heightToTerrainColor(h);
+
+    // Lighting
+    vec3 norm = normalize(Normal);
+    vec3 lightDirNorm = normalize(-lightDir); // assuming lightDir is towards the light
+    float diff = max(dot(norm, lightDirNorm), 0.0);
+    vec3 diffuse = diff * lightColor;
+
+    // Ambient
+    vec3 ambient = 0.3 * lightColor;
+
+    // Shadow
+    float shadow = ShadowCalculation(FragPosLightSpace);
+
+    vec3 lighting = (ambient + (1.0 - shadow) * diffuse) * texColor;
+
+    // Fog calculation
+    float distance = length(viewPos - FragPos);
+    float fogFactor = 1.0 - exp(-fogDensity * distance);
+    vec3 finalColor = mix(lighting, fogColor, fogFactor);
+
+    FragColor = vec4(finalColor, 1.0);
 }
