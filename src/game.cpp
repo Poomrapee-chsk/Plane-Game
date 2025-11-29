@@ -2,9 +2,11 @@
 #include "GLFW/glfw3.h"
 #include "glm/common.hpp"
 #include "glm/trigonometric.hpp"
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <stb_image.h>
+#include <stb_easy_font.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -16,7 +18,9 @@
 #include <learnopengl/model.h>
 #include <learnopengl/shader_m.h>
 
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 void renderCube();
@@ -30,6 +34,33 @@ unsigned int loadCubemap(vector<std::string> faces);
 // settings
 const unsigned int SCR_WIDTH = 1920;
 const unsigned int SCR_HEIGHT = 1080;
+
+// ===== GAME CONFIGURATION VARIABLES =====
+int NUM_BALLOONS = 100;
+int NUM_UFOS = 5;
+
+// Balloon Spawn Area Range
+float BALLOON_SPAWN_MIN_X = -2000.0f;
+float BALLOON_SPAWN_MAX_X = 2000.0f;
+float BALLOON_SPAWN_MIN_Z = -2000.0f;
+float BALLOON_SPAWN_MAX_Z = 2000.0f;
+float BALLOON_SPAWN_MIN_Y = 100.0f;
+float BALLOON_SPAWN_MAX_Y = 300.0f;
+
+// UFO Spawn Area Range
+float UFO_SPAWN_MIN_X = -3000.0f;
+float UFO_SPAWN_MAX_X = 3000.0f;
+float UFO_SPAWN_MIN_Z = -3000.0f;
+float UFO_SPAWN_MAX_Z = 3000.0f;
+float UFO_SPAWN_MIN_Y = 100.0f;
+float UFO_SPAWN_MAX_Y = 500.0f;
+
+// Score
+const float COLLISION_RADIUS_BALLOON = 15.0f;
+const float COLLISION_RADIUS_UFO = 10.0f;
+int playerScore = 0;
+bool gameOver = false;
+// ===== END CONFIGURATION =====
 
 // camera
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -58,6 +89,70 @@ glm::vec3 ForwardFromEuler(float yaw, float pitch) {
 
   return glm::vec3(-sy * cp, sp, -cy * cp);
 }
+
+// ===== COLLECTIBLE STRUCTURES =====
+struct Balloon {
+  glm::vec3 Position;
+  bool IsActive;
+  float BobSpeed;   // Floating speed
+  float BobAmount;  // Floating range
+  float TimeOffset; // Time offset for desync
+
+  Balloon(glm::vec3 pos)
+      : Position(pos), IsActive(true), BobSpeed(0.5f + (rand() % 100) / 200.0f),
+        BobAmount(1.0f + (rand() % 100) / 100.0f),
+        TimeOffset((rand() % 100) / 10.0f) {}
+
+  void Update(float time) {
+    if (IsActive) {
+      Position.y += sin(time * BobSpeed + TimeOffset) * BobAmount * 0.01f;
+    }
+  }
+
+  glm::mat4 GetModelMatrix() const {
+    glm::mat4 m(1.0f);
+    m = glm::translate(m, Position);
+    m = glm::scale(m, glm::vec3(2.0f, 2.0f, 2.0f));
+    return m;
+  }
+};
+
+struct UFO {
+  glm::vec3 Position;
+  bool IsActive;
+  float RotationSpeed;
+  float CurrentRotation;
+  float HoverSpeed;
+  float HoverAmount;
+  float TimeOffset;
+
+  UFO(glm::vec3 pos)
+      : Position(pos), IsActive(true), CurrentRotation(0.0f),
+        RotationSpeed(20.0f + (rand() % 100) / 5.0f),
+        HoverSpeed(0.8f + (rand() % 100) / 200.0f),
+        HoverAmount(0.8f + (rand() % 100) / 100.0f),
+        TimeOffset((rand() % 100) / 10.0f) {}
+
+  void Update(float time, float dt) {
+    if (IsActive) {
+      // Rotate around itself
+      CurrentRotation += RotationSpeed * dt;
+      if (CurrentRotation > 360.0f)
+        CurrentRotation -= 360.0f;
+
+      // Hover up and down
+      Position.y += sin(time * HoverSpeed + TimeOffset) * HoverAmount * 0.01f;
+    }
+  }
+
+  glm::mat4 GetModelMatrix() const {
+    glm::mat4 m(1.0f);
+    m = glm::translate(m, Position);
+    m = glm::rotate(m, glm::radians(CurrentRotation), glm::vec3(0, 1, 0));
+    m = glm::scale(m, glm::vec3(24.0f, 24.0f, 24.0f));
+    return m;
+  }
+};
 
 class HeightmapTerrain {
 private:
@@ -470,7 +565,58 @@ struct Plane {
   }
 };
 
+// ===== HELPER FUNCTIONS =====
+glm::vec3 GetRandomBalloonSpawnPosition() {
+  float x =
+      BALLOON_SPAWN_MIN_X +
+      ((float)rand() / RAND_MAX) * (BALLOON_SPAWN_MAX_X - BALLOON_SPAWN_MIN_X);
+  float y =
+      BALLOON_SPAWN_MIN_Y +
+      ((float)rand() / RAND_MAX) * (BALLOON_SPAWN_MAX_Y - BALLOON_SPAWN_MIN_Y);
+  float z =
+      BALLOON_SPAWN_MIN_Z +
+      ((float)rand() / RAND_MAX) * (BALLOON_SPAWN_MAX_Z - BALLOON_SPAWN_MIN_Z);
+  return glm::vec3(x, y, z);
+}
+
+glm::vec3 GetRandomUFOSpawnPosition() {
+  float x = UFO_SPAWN_MIN_X +
+            ((float)rand() / RAND_MAX) * (UFO_SPAWN_MAX_X - UFO_SPAWN_MIN_X);
+  float y = UFO_SPAWN_MIN_Y +
+            ((float)rand() / RAND_MAX) * (UFO_SPAWN_MAX_Y - UFO_SPAWN_MIN_Y);
+  float z = UFO_SPAWN_MIN_Z +
+            ((float)rand() / RAND_MAX) * (UFO_SPAWN_MAX_Z - UFO_SPAWN_MIN_Z);
+  return glm::vec3(x, y, z);
+}
+
+bool CheckCollision(const glm::vec3 &pos1, const glm::vec3 &pos2,
+                    float radius) {
+  float distance = glm::length(pos1 - pos2);
+  return distance < radius;
+}
+
+void ResetGame(Plane &player, std::vector<Balloon> &balloons,
+               std::vector<UFO> &ufos) {
+  gameOver = false;
+  playerScore = 0;
+  player.Reset();
+
+  // Respawn all balloons
+  for (auto &balloon : balloons) {
+    balloon.IsActive = true;
+    balloon.Position = GetRandomBalloonSpawnPosition();
+  }
+
+  // Respawn all UFOs
+  for (auto &ufo : ufos) {
+    ufo.IsActive = true;
+    ufo.Position = GetRandomUFOSpawnPosition();
+  }
+}
+
 int main() {
+  srand(static_cast<unsigned>(time(nullptr)));
+
   // glfw: initialize and configure
   // ------------------------------
   glfwInit();
@@ -488,9 +634,8 @@ int main() {
       glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
   if (window == NULL) {
     std::cout << "Failed to create GLFW window" << std::endl;
-    glfwTerminate();
-    return -1;
   }
+
   glfwMakeContextCurrent(window);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetCursorPosCallback(window, mouse_callback);
@@ -543,6 +688,9 @@ int main() {
   // load models
   // -----------
   Model ourModel(FileSystem::getPath("resources/objects/plane/plane.obj"));
+  Model balloon_model(
+      FileSystem::getPath("resources/objects/balloon/balloon.obj"));
+  Model UFO_model(FileSystem::getPath("resources/objects/toyUFO/toyUFO.obj"));
 
   // build and compile shaders
   // -------------------------
@@ -654,6 +802,23 @@ int main() {
   Plane player(glm::vec3(0.0f, 55.0f, 0.0f));
   player.Terrain = &terrain;
 
+  /* Spawn baloons and UFOs */
+  std::vector<Balloon> balloons;
+  for (int i = 0; i < NUM_BALLOONS; i++) {
+    balloons.emplace_back(GetRandomBalloonSpawnPosition());
+  }
+
+  std::vector<UFO> ufos;
+  for (int i = 0; i < NUM_UFOS; i++) {
+    glm::vec3 spawnPos = GetRandomUFOSpawnPosition();
+    ufos.emplace_back(spawnPos);
+    std::cout << "UFO " << i << " spawned at: " << spawnPos.x << ", "
+              << spawnPos.y << ", " << spawnPos.z << std::endl;
+  }
+
+  std::cout << "Spawned " << NUM_BALLOONS << " balloons and " << NUM_UFOS
+            << " UFOs" << std::endl;
+
   // Light settings
   glm::vec3 lightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
   glm::vec3 lightColor = glm::vec3(0.9f, 0.85f, 0.85f);
@@ -661,7 +826,7 @@ int main() {
   const float FAR_PLANE = 1000.00f;
 
   // Fog settings
-  glm::vec3 fogColor = glm::vec3((float)2);
+  glm::vec3 fogColor = glm::vec3(0.9725f, 0.5961f, 0.0f);
   float fogDensity = 0.0005f;
 
   // Camera follow settings
@@ -683,51 +848,54 @@ int main() {
     processInput(window);
 
     // --- Plane keyboard controls ---
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-      player.PitchUp(deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-      player.PitchDown(deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-      player.TurnLeft(deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-      player.TurnRight(deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-      player.RollLeft(deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-      player.RollRight(deltaTime);
-    // Plane controls only active in follow mode
-    if (followPlane) {
-      if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        player.SpeedUp(deltaTime);
-      if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        player.SlowDown(deltaTime);
-    }
-
-    // Auto-dampen roll when not actively rolling
-    // if (glfwGetKey(window, GLFW_KEY_Q) != GLFW_PRESS &&
-    //     glfwGetKey(window, GLFW_KEY_E) != GLFW_PRESS) {
-    //     player.DampenRoll(deltaTime);
-    // }
-
-    // Toggle camera mode with debounce
-    if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
-      if (currentFrame - lastToggleTime > toggleCooldown) {
-        followPlane = !followPlane;
-        captureMouse = !captureMouse;
-        camera.Zoom = 50.0f;
-        lastToggleTime = currentFrame;
-        firstMouse = true; // Reset mouse to avoid jumps
-        std::cout << (followPlane ? "Follow Plane Mode" : "Free Camera Mode")
-                  << std::endl;
+    if (!gameOver) {
+      if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+        player.PitchUp(deltaTime);
+      if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+        player.PitchDown(deltaTime);
+      if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+        player.TurnLeft(deltaTime);
+      if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+        player.TurnRight(deltaTime);
+      if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        player.RollLeft(deltaTime);
+      if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        player.RollRight(deltaTime);
+      // Plane controls only active in follow mode
+      if (followPlane) {
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+          player.SpeedUp(deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+          player.SlowDown(deltaTime);
       }
+
+      // Auto-dampen roll when not actively rolling
+      // if (glfwGetKey(window, GLFW_KEY_Q) != GLFW_PRESS &&
+      //     glfwGetKey(window, GLFW_KEY_E) != GLFW_PRESS) {
+      //     player.DampenRoll(deltaTime);
+      // }
+
+      // Toggle camera mode with debounce
+      if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
+        if (currentFrame - lastToggleTime > toggleCooldown) {
+          followPlane = !followPlane;
+          captureMouse = !captureMouse;
+          camera.Zoom = 50.0f;
+          lastToggleTime = currentFrame;
+          firstMouse = true; // Reset mouse to avoid jumps
+          std::cout << (followPlane ? "Follow Plane Mode" : "Free Camera Mode")
+                    << std::endl;
+        }
+      }
+
+      if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS &&
+          camera.Zoom > 1.0f)
+        camera.Zoom -= 1.0f;
+
+      if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS &&
+          camera.Zoom < 100.0f)
+        camera.Zoom += 1.0f;
     }
-
-    if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS && camera.Zoom > 1.0f)
-      camera.Zoom -= 1.0f;
-
-    if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS &&
-        camera.Zoom < 100.0f)
-      camera.Zoom += 1.0f;
 
     // debug
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
@@ -736,6 +904,16 @@ int main() {
       std::cout << "Yaw: " << player.Yaw << ", Pitch: " << player.Pitch
                 << ", Roll: " << player.Roll << std::endl;
       std::cout << "Player Roll Speed: " << player.RollSpeed << std::endl;
+    }
+
+    // Reset game with R key
+    static bool rKeyPressed = false;
+    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !rKeyPressed) {
+      ResetGame(player, balloons, ufos);
+      rKeyPressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE) {
+      rKeyPressed = false;
     }
 
     // Update plane physics
@@ -752,8 +930,40 @@ int main() {
       camera.Front = glm::normalize(player.Position - camera.Position);
     }
 
-    // render
-    // ------
+    // Balloon
+    for (auto &balloon : balloons) {
+      balloon.Update(currentFrame);
+    }
+
+    // Update UFOs
+    for (auto &ufo : ufos) {
+      ufo.Update(currentFrame, deltaTime);
+    }
+
+    // ===== COLLISION DETECTION =====
+    if (!gameOver) {
+      // Check balloon collisions
+      for (auto &balloon : balloons) {
+        if (balloon.IsActive &&
+            CheckCollision(player.Position, balloon.Position,
+                           COLLISION_RADIUS_BALLOON)) {
+          balloon.IsActive = false;
+          playerScore += 5;
+          std::cout << "Balloon collected! Score: " << playerScore << std::endl;
+        }
+      }
+
+      // Check UFO collisions
+      for (auto &ufo : ufos) {
+        if (ufo.IsActive && CheckCollision(player.Position, ufo.Position,
+                                           COLLISION_RADIUS_UFO)) {
+          gameOver = true;
+          std::cout << "GAME OVER! Hit UFO! Final Score: " << playerScore
+                    << std::endl;
+          break;
+        }
+      }
+    }
 
     // render depth of scene to texture (from light's perspective)
     // --------------------------------------------------------------
@@ -778,7 +988,7 @@ int main() {
     glm::vec3 worldRollAxis = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f));
 
     if (followPlane) {
-        model = glm::rotate(model, -glm::radians(player.Roll / 2), worldRollAxis);
+      model = glm::rotate(model, -glm::radians(player.Roll / 2), worldRollAxis);
     }
 
     model = glm::scale(model, glm::vec3(0.25f));
@@ -801,12 +1011,11 @@ int main() {
     // Update projection matrix with current zoom level
     glm::mat4 projection =
         glm::perspective(glm::radians(camera.Zoom),
-                         (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
+                         (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 10000.0f);
 
     // Render plane
     //
     glm::mat4 view = camera.GetViewMatrix();
-
 
     modelShader.use();
     modelShader.setMat4("model", model);
@@ -826,8 +1035,9 @@ int main() {
     // Apply plane rotation to environment in follow mode
     if (followPlane) {
       glm::mat4 rotationMatrix = glm::mat4(1.0f);
-      rotationMatrix = glm::rotate(rotationMatrix, glm::radians(-player.Roll) / 2,
-                                   glm::vec3(0.0f, 0.0f, 1.0f));
+      rotationMatrix =
+          glm::rotate(rotationMatrix, glm::radians(-player.Roll) / 2,
+                      glm::vec3(0.0f, 0.0f, 1.0f));
       view = rotationMatrix * view;
     }
 
@@ -835,6 +1045,26 @@ int main() {
     glm::mat4 terrainModel = glm::mat4(1.0f);
     terrain.Draw(projection, view, terrainModel, lightSpaceMatrix, lightDir,
                  lightColor, camera.Position, depthMap, fogColor, fogDensity);
+
+    // Render active balloons
+    for (const auto &balloon : balloons) {
+      if (balloon.IsActive) {
+        model = balloon.GetModelMatrix();
+        modelShader.setMat4("model", model);
+        modelShader.setMat4("view", view);
+        balloon_model.Draw(modelShader);
+      }
+    }
+
+    // Render active UFOs
+    for (const auto &ufo : ufos) {
+      if (ufo.IsActive) {
+        model = ufo.GetModelMatrix();
+        modelShader.setMat4("model", model);
+        modelShader.setMat4("view", view);
+        UFO_model.Draw(modelShader);
+      }
+    }
 
     /* Render Skybox Equirectangular Map*/
     glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when
@@ -846,6 +1076,16 @@ int main() {
     glBindTexture(GL_TEXTURE_CUBE_MAP, envCubemap);
     renderCube();
     glDepthFunc(GL_LESS); // set depth function back to default
+
+    // Display score and status in window title
+    std::stringstream ss;
+    ss << "Plane Game - Score: " << playerScore << " | Speed: " << std::fixed
+       << std::setprecision(1) << player.Speed;
+    if (gameOver) {
+      ss << " | GAME OVER - Press R to Restart";
+    } else {
+      ss << " | Press R to Restart";
+    }
 
     // glfw: swap buffers and poll IO events (keys pressed/released, mouse
     // moved etc.)
