@@ -1,5 +1,4 @@
 #version 330 core
-
 out vec4 FragColor;
 
 in float Height;
@@ -34,14 +33,19 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     // get depth of current fragment from light's perspective
     float currentDepth = projCoords.z;
     // check whether current frag pos is in shadow
-    float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+    const float bias = 0.005;
+    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+    if (projCoords.z > 1.0) {
+        shadow = 0.0;
+    }
 
     return shadow;
 }
 
 vec3 heightToTerrainColor(float h)
 {
-    vec2 tiledTexCoord = vTexCoord * tiling;
+    vec2 tiledTexCoord = vTexCoord;
     // define colors
     //vec3 water = vec3(0.0, 0.15, 0.5);
     //vec3 sand  = vec3(0.76, 0.68, 0.50);

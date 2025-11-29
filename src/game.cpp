@@ -84,9 +84,13 @@ private:
                  GL_STATIC_DRAW);
 
     // position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float),
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
                           (void *)0);
     glEnableVertexAttribArray(0);
+    // texture coordinate attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+                          (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     glGenBuffers(1, &terrainIBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, terrainIBO);
@@ -103,6 +107,7 @@ public:
                    const std::string &fragmentShaderPath)
       : heightmapShader(vertexShaderPath.c_str(), fragmentShaderPath.c_str()) {
     stbi_set_flip_vertically_on_load(true);
+
     unsigned char *data = stbi_load(FileSystem::getPath(heightmapPath).c_str(),
                                     &width, &height, &nrChannels, 0);
     if (!data) {
@@ -125,9 +130,21 @@ public:
         vertices.push_back(static_cast<int>(y) * yScale - yShift); // vy
         vertices.push_back((-width / 2.0f + width * j / (float)width) *
                            horizontalScale); // vz
+        vertices.push_back((i / (float)height - 0.5) *
+                           horizontalScale); // texture x
+        vertices.push_back((j / (float)width - 0.5) *
+                           horizontalScale); // texture z
       }
     }
-    std::cout << "Loaded " << vertices.size() / 3 << " vertices" << std::endl;
+    //      for (int i = 0; i < height * width; i++) {
+    //           std::cout << "v[" << i << "] = (" << vertices[i * 5 + 0] << ",
+    //           "
+    //                     << vertices[i * 5 + 1] << ", " << vertices[i * 5 + 2]
+    //                     << ", " << vertices[i * 5 + 3] << ", " << vertices[i
+    //                     * 5 + 4]
+    //                     << ")" << std::endl;
+    //}
+    std::cout << "Loaded " << vertices.size() / 5 << " vertices" << std::endl;
     stbi_image_free(data);
 
     // build index list for triangle strips
@@ -140,6 +157,7 @@ public:
         }
       }
     }
+
     std::cout << "Loaded " << indices.size() << " indices" << std::endl;
 
     numStrips = (height > 1) ? (height - 1) / rez : 0;
@@ -153,17 +171,20 @@ public:
     setupMesh(indices);
 
     waterTexture = loadTexture(
-        FileSystem::getPath("resources/textures/terrain/water.jpg").c_str());
+        FileSystem::getPath("resources/textures/pbr/terrain/water.jpg")
+            .c_str());
     sandTexture = loadTexture(
-        FileSystem::getPath("resources/textures/terrain/sand.jpg").c_str());
+        FileSystem::getPath("resources/textures/pbr/terrain/sand.jpg").c_str());
     grassTexture = loadTexture(
-        FileSystem::getPath("resources/textures/terrain/grass.jpg").c_str());
+        FileSystem::getPath("resources/textures/pbr/terrain/grass.jpg")
+            .c_str());
     rockTexture = loadTexture(
-        FileSystem::getPath("resources/textures/terrain/rock.jpg").c_str());
+        FileSystem::getPath("resources/textures/pbr/terrain/rock.jpg").c_str());
     snowTexture = loadTexture(
-        FileSystem::getPath("resources/textures/terrain/snow.jpg").c_str());
-  }
+        FileSystem::getPath("resources/textures/pbr/terrain/snow.jpg").c_str());
 
+    std::cout << "Loaded " << indices.size() << " indices" << std::endl;
+  }
   // Helper function for plane
   glm::vec3 get_random_start_location() {
     return glm::vec3(-width + ((float)rand() / RAND_MAX * (2 * width)), 50.0f,
@@ -251,7 +272,7 @@ public:
       iz = width - 1;
     size_t idx = (static_cast<size_t>(ix) * static_cast<size_t>(width) +
                   static_cast<size_t>(iz)) *
-                     3 +
+                     5 +
                  1;
     return vertices[idx];
   }
@@ -391,12 +412,12 @@ struct Plane {
 
   // Returns model matrix for rendering
   glm::mat4 GetModelMatrix() const {
-      glm::mat4 m(1.0f);
-      m = glm::translate(m, Position);
-      m = glm::rotate(m, glm::radians(Yaw), glm::vec3(0, 1, 0));
-      m = glm::rotate(m, glm::radians(Pitch), glm::vec3(1, 0, 0));
-      m = glm::rotate(m, glm::radians(Roll), glm::vec3(0, 0, 1));
-      return m;
+    glm::mat4 m(1.0f);
+    m = glm::translate(m, Position);
+    m = glm::rotate(m, glm::radians(Yaw), glm::vec3(0, 1, 0));
+    m = glm::rotate(m, glm::radians(Pitch), glm::vec3(1, 0, 0));
+    m = glm::rotate(m, glm::radians(Roll), glm::vec3(0, 0, 1));
+    return m;
   }
 
   void Reset() {
@@ -491,7 +512,7 @@ int main() {
 
   // shadow map setup
   // -----------------
-  const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+  const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096;
   unsigned int depthMapFBO;
   glGenFramebuffers(1, &depthMapFBO);
   unsigned int depthMap;
@@ -499,8 +520,8 @@ int main() {
   glBindTexture(GL_TEXTURE_2D, depthMap);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH,
                SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
   float borderColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -634,12 +655,14 @@ int main() {
   player.Terrain = &terrain;
 
   // Light settings
-  glm::vec3 lightDir = glm::vec3(0.0f, -1.0f, 0.0f);
-  glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
+  glm::vec3 lightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
+  glm::vec3 lightColor = glm::vec3(0.9f, 0.85f, 0.85f);
+  const float NEAR_PLANE = 0.1f;
+  const float FAR_PLANE = 1000.00f;
 
   // Fog settings
-  glm::vec3 fogColor = glm::vec3(0.5f, 0.5f, 0.5f);
-  float fogDensity = 0.005f;
+  glm::vec3 fogColor = glm::vec3((float)2);
+  float fogDensity = 0.0005f;
 
   // Camera follow settings
   bool followPlane = true;
@@ -735,9 +758,10 @@ int main() {
     // render depth of scene to texture (from light's perspective)
     // --------------------------------------------------------------
     glm::mat4 lightProjection =
-        glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, 1.0f, 100.0f);
-    glm::mat4 lightView = glm::lookAt(lightDir * 50.0f, glm::vec3(0.0f),
-                                      glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, NEAR_PLANE, FAR_PLANE);
+    glm::mat4 lightView =
+        glm::lookAt(glm::vec3(-200.0f, 100.0f, -100.0f) + player.Position,
+                    player.Position, glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 lightSpaceMatrix = lightProjection * lightView;
     depthShader.use();
     depthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
@@ -746,14 +770,27 @@ int main() {
     glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
 
+    // enable culling
+    glCullFace(GL_FRONT);
+
     // draw shadow regards to model
     glm::mat4 model = player.GetModelMatrix();
+    glm::vec3 worldRollAxis = glm::normalize(glm::vec3(0.0f, 0.0f, 1.0f));
+
+    if (followPlane) {
+        model = glm::rotate(model, -glm::radians(player.Roll / 2), worldRollAxis);
+    }
+
     model = glm::scale(model, glm::vec3(0.25f));
     depthShader.setMat4("model", model);
+    ourModel.Draw(depthShader);
 
     // render terrain
     glm::mat4 depthModel = glm::mat4(1.0f);
     terrain.DrawDepth(depthShader, depthModel);
+
+    // disable culling
+    glCullFace(GL_BACK);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -767,9 +804,12 @@ int main() {
                          (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
 
     // Render plane
+    //
     glm::mat4 view = camera.GetViewMatrix();
 
+
     modelShader.use();
+    modelShader.setMat4("model", model);
     modelShader.setMat4("view", view);
     modelShader.setMat4("projection", projection);
     modelShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
@@ -781,14 +821,14 @@ int main() {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, depthMap);
     modelShader.setInt("shadowMap", 1);
-    modelShader.setMat4("model", model);
     ourModel.Draw(modelShader);
 
     // Apply plane rotation to environment in follow mode
     if (followPlane) {
-        glm::mat4 rotationMatrix = glm::mat4(1.0f);
-        rotationMatrix = glm::rotate(rotationMatrix, glm::radians(-player.Roll), glm::vec3(0.0f, 0.0f, 1.0f));
-        view = rotationMatrix * view;
+      glm::mat4 rotationMatrix = glm::mat4(1.0f);
+      rotationMatrix = glm::rotate(rotationMatrix, glm::radians(-player.Roll) / 2,
+                                   glm::vec3(0.0f, 0.0f, 1.0f));
+      view = rotationMatrix * view;
     }
 
     // draw terrain
