@@ -21,6 +21,7 @@ link_directories(${CMAKE_SOURCE_DIR}/lib)
 find_package(GLM REQUIRED)
 find_package(GLFW3 REQUIRED)
 find_package(ASSIMP REQUIRED)
+find_package(Freetype REQUIRED)
 
 if (WIN32)
     set(LIBS glfw3 opengl32 assimp)
@@ -40,7 +41,7 @@ add_library(STB_IMAGE src/stb_image.cpp)
 
 add_executable(Simple3DGame src/game.cpp)
 
-target_link_libraries(Simple3DGame GLAD STB_IMAGE ${LIBS})
+target_link_libraries(Simple3DGame GLAD STB_IMAGE Freetype::Freetype ${LIBS})
 
 # Copy shader files to build directory
 file(GLOB SHADERS "src/*.vs" "src/*.fs")
