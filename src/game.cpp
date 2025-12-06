@@ -8,17 +8,20 @@
 #include <stb_image.h>
 #include FT_FREETYPE_H
 
+// Glad
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+// OpenGL
 #include <learnopengl/camera.h>
 #include <learnopengl/filesystem.h>
 #include <learnopengl/model.h>
 #include <learnopengl/shader_m.h>
 
+// C++
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -162,7 +165,7 @@ class HeightmapTerrain {
 private:
   int width, height, nrChannels;
   std::vector<float> vertices;
-  float yScale = 1.2f, yShift = 36.0f;
+  float yScale = 0.8f, yShift = 70.0f;
   float horizontalScale = 8.0f;
   unsigned bytePerPixel;
   int rez = 1;
@@ -507,27 +510,19 @@ struct Plane {
   }
 
   /* Getters */
-  string GetSpeed() {
-      return std::to_string(int(round(Speed))) + " kts";
-  }
+  string GetSpeed() { return std::to_string(int(round(Speed * 5.12))) + " kts"; }
 
   string GetAltitude() {
-      std::stringstream altitude;
-      altitude << std::fixed << std::setprecision(2) << Position.y << " feet";
-      return altitude.str();
+    std::stringstream altitude;
+    altitude << std::fixed << std::setprecision(2) << (Position.y) * 10 << " feet";
+    return altitude.str();
   }
 
-  string GetRoll() {
-      return std::to_string(Roll);
-  }
+  string GetRoll() { return std::to_string(Roll); }
 
-  string GetPitch() {
-      return std::to_string(Pitch);
-  }
+  string GetPitch() { return std::to_string(Pitch); }
 
-  string GetYaw() {
-      return std::to_string(Yaw);
-  }
+  string GetYaw() { return std::to_string(Yaw); }
 
   // Returns model matrix for rendering
   glm::mat4 GetModelMatrix() const {
@@ -582,7 +577,7 @@ struct Plane {
       float groundY = Terrain->GetHeightAt(Position.x, Position.z);
       float minY = groundY + GroundClearance;
       if (Position.y < minY) {
-          gameOver = true;
+        gameOver = true;
       }
     }
   }
@@ -921,7 +916,7 @@ int main() {
   Plane player(glm::vec3(0.0f, 55.0f, 0.0f));
   player.Terrain = &terrain;
 
-  /* Spawn baloons and UFOs */
+  /* Spawn balloons and UFOs */
   std::vector<Balloon> balloons;
   for (int i = 0; i < NUM_BALLOONS; i++) {
     balloons.emplace_back(GetRandomBalloonSpawnPosition());
@@ -939,14 +934,21 @@ int main() {
             << " UFOs" << std::endl;
 
   // Light settings
-  glm::vec3 lightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
+  float sunAzimuth = 232.0f;
+  float sunElevation = 45.0f;
+
+  float sz = glm::radians(sunAzimuth);
+  float se = glm::radians(sunElevation);
+
+  glm::vec3 lightDir =
+      glm::normalize(glm::vec3((cos(sz) * cos(se)), -sin(se), (sin(sz) * cos(se))));
   glm::vec3 lightColor = glm::vec3(0.9f, 0.85f, 0.85f);
   const float NEAR_PLANE = 0.1f;
   const float FAR_PLANE = 1000.00f;
 
   // Fog settings
-  glm::vec3 fogColor = glm::vec3(0.9725f, 0.5961f, 0.0f);
-  float fogDensity = 0.0005f;
+  glm::vec3 fogColor = glm::vec3(1.0f, 1.0f, 0.949f);
+  float fogDensity = 0.00005f;
 
   // Camera follow settings
   bool followPlane = true;
@@ -978,19 +980,10 @@ int main() {
         player.RollLeft(deltaTime);
       if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
         player.RollRight(deltaTime);
-      // Plane controls only active in follow mode
-      if (followPlane) {
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-          player.SpeedUp(deltaTime);
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-          player.SlowDown(deltaTime);
-      }
-
-      // Auto-dampen roll when not actively rolling
-      // if (glfwGetKey(window, GLFW_KEY_Q) != GLFW_PRESS &&
-      //     glfwGetKey(window, GLFW_KEY_E) != GLFW_PRESS) {
-      //     player.DampenRoll(deltaTime);
-      // }
+      if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        player.SpeedUp(deltaTime);
+      if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        player.SlowDown(deltaTime);
 
       // Toggle camera mode with debounce
       if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
@@ -1088,9 +1081,12 @@ int main() {
     // --------------------------------------------------------------
     glm::mat4 lightProjection =
         glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, NEAR_PLANE, FAR_PLANE);
+
+    float sunDistance = 200.0f;
+    glm::vec3 lightPos = player.Position - lightDir * sunDistance;
     glm::mat4 lightView =
-        glm::lookAt(glm::vec3(-200.0f, 100.0f, -100.0f) + player.Position,
-                    player.Position, glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::lookAt(lightPos, player.Position,
+                    glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 lightSpaceMatrix = lightProjection * lightView;
     depthShader.use();
     depthShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
@@ -1114,9 +1110,9 @@ int main() {
     depthShader.setMat4("model", model);
     ourModel.Draw(depthShader);
 
-    // render terrain
-    glm::mat4 depthModel = glm::mat4(1.0f);
-    terrain.DrawDepth(depthShader, depthModel);
+    // // render terrain
+    // glm::mat4 depthModel = glm::mat4(1.0f);
+    // terrain.DrawDepth(depthShader, depthModel);
 
     // disable culling
     glCullFace(GL_BACK);
@@ -1207,12 +1203,12 @@ int main() {
                50.0f, SCR_HEIGHT - 150.0f, 0.8f, glm::vec3(1.0f));
 
     /* Render Speed */
-    RenderText(fontShader, player.GetSpeed(), SCR_WIDTH - 350.0f,
-               200.0f, 0.8f, glm::vec3(1.0f));
+    RenderText(fontShader, player.GetSpeed(), SCR_WIDTH - 350.0f, 300.0f, 0.8f,
+               glm::vec3(1.0f));
 
     /* Render Altitude */
-    RenderText(fontShader, player.GetAltitude(), SCR_WIDTH - 350.0f,
-               300.0f, 0.8f, glm::vec3(1.0f));
+    RenderText(fontShader, player.GetAltitude(), SCR_WIDTH - 350.0f, 200.0f,
+               0.8f, glm::vec3(1.0f));
 
     glEnable(GL_DEPTH_TEST);
     ///////////////////////////////////////////////////////////////////////////
@@ -1244,9 +1240,6 @@ int main() {
 void processInput(GLFWwindow *window) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
-
-  // Camera controls disabled when plane is active (use C to toggle camera
-  // mode if needed)
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback

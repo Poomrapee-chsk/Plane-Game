@@ -59,19 +59,24 @@ vec3 heightToTerrainColor(float h)
     vec3 snow = texture(uTextureSnow, tiledTexCoord).rgb;
 
     // blend using smoothstep across ranges
-    if (h < 0.4)
+    if (h < 0.1) {
+        h = h / 0.1;
         return mix(water, sand, smoothstep(0.0, 0.3, h));
-    else if (h < 0.7)
-        return mix(sand, grass, smoothstep(0.3, 0.5, h));
-    else if (h < 0.85)
-        return mix(grass, rock, smoothstep(0.5, 0.75, h));
-    else
-        return mix(rock, snow, smoothstep(0.75, 1.0, h));
+    } else if (h < 0.7) {
+        h = (h - 0.1) / 0.3;
+        return mix(sand, grass, smoothstep(0.0, 0.5, h));
+    } else if (h < 0.85) {
+        h = (h - 0.7)  /0.15;
+        return mix(grass, rock, smoothstep(0.0, 0.99, h));
+    } else {
+        h = (h - 0.85)  /0.15;
+        return mix(rock, snow, smoothstep(0.3, 1.0, h));
+    }
 }
 
 void main()
 {
-    float h = (Height + 32.0) / 64.0;
+    float h = (Height + 64.0) / 128.0;
     h = clamp(h, 0.0, 1.0);
 
     vec3 texColor = heightToTerrainColor(h);
