@@ -514,7 +514,7 @@ struct Plane {
 
   string GetAltitude() {
     std::stringstream altitude;
-    altitude << std::fixed << std::setprecision(2) << (Position.y) * 10 << " feet";
+    altitude << std::fixed << std::setprecision(2) << (Position.y + 40) * 10 << " feet";
     return altitude.str();
   }
 
